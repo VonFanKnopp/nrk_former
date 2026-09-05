@@ -83,7 +83,7 @@ def solved(board_state):
     return True
 
 
-pygame.init()
+# pygame.init()
 pygame.display.set_caption("Former")
 seed(2)
 
@@ -99,6 +99,7 @@ win_size = glm.vec2(BOARD_WIDTH, BOARD_HEIGHT) * TILE_SIZE + glm.vec2(BOARD_WIDT
 win = pygame.display.set_mode(win_size)
 
 board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
+print(board)
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
