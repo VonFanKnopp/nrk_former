@@ -5,6 +5,10 @@
 #include <array>
 #include <cstdint>
 #include <bitset>
+#include <unordered_set>
+#include <cmath>
+#include <utility>
+
 constexpr int BOARD_WIDTH = 3;
 constexpr int BOARD_HEIGHT = 3;
 constexpr int BOARD_SIZE = BOARD_WIDTH * BOARD_HEIGHT;
@@ -12,8 +16,8 @@ constexpr int NUM_SHAPES = 4;
 
 using Bitboard = std::uint64_t;
 using Bitboards = std::array<Bitboard, NUM_SHAPES>;
-using Field = std::vector<Bitboard>;
-using Fields = std::array<Field, NUM_SHAPES>;
+using SameShapeFields = std::vector<Bitboard>;
+using Fields = std::array<SameShapeFields, NUM_SHAPES>;
 
 constexpr Bitboard getTopMask(const int width, const int height) {
     Bitboard mask = 0;
@@ -98,6 +102,20 @@ void printBitboards(const Bitboards &bbs, const int width, const int height) {
     }
 }
 
+void printBoardFromBitboards(const Bitboards &bbs, const int width, const int height) {
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int i = y * width + x;
+            for (int shape = 0; shape < NUM_SHAPES; shape++) {
+                if ((bbs[shape] >> i) & 1 == 1) {
+                    std::cout << shape + 1 << " ";
+                }
+            }
+        }
+        std::cout << "\n";
+    }
+}
+
 Fields getFields(Bitboards bbs) {
 
     Fields fields{};
@@ -112,12 +130,12 @@ Fields getFields(Bitboards bbs) {
 
             b &= ~first;
             while (frontier) {
-                Bitboard up = (frontier >> 1) & ~topMask;
-                Bitboard down = (frontier << 1) & ~bottomMask;
+                Bitboard up = (frontier << 1) & ~topMask;
+                Bitboard down = (frontier >> 1) & ~bottomMask;
                 Bitboard left = (frontier << BOARD_HEIGHT);
                 Bitboard right = (frontier >> BOARD_HEIGHT);
-
                 Bitboard neighbors = (up | down | left | right) & b;
+
                 b &= ~neighbors;
                 frontier = neighbors;
                 field |= neighbors;
@@ -129,19 +147,48 @@ Fields getFields(Bitboards bbs) {
     return fields;
 }
 
+Fields explore(Bitboards bbs, Bitboard field, int shape) {
+    bbs[shape] &= ~field;
+
+    Bitboard fullBitboard = bbs[0] | bbs[1] | bbs[2] | bbs[3];
+    std::vector<std::pair<int, int>> cols; // The lowest point in each coumn
+
+    // Find all affected cols
+    while (field) {
+        Bitboard first = field & -field;
+        field &= ~first;
+        int index = std::log2(first);
+        int col = index / BOARD_HEIGHT;
+        int row = index % BOARD_HEIGHT;
+        // Clear the rest of the column so it does not need to be searched 
+        Bitboard mask = (1 << BOARD_HEIGHT) - 1 << col * BOARD_WIDTH;
+        field &= ~mask;
+        cols.push_back(std::pair<int, int>(col, row));
+    }
+
+
+    printBitboard(fullBitboard, BOARD_HEIGHT, BOARD_WIDTH);
+}
+
 int main() {
     const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1]");
-
     std::vector<int> board = parseBoardString(boardString);
-    printBoard(board, BOARD_WIDTH, BOARD_HEIGHT);
     std::vector<int> r_board = rotateBoard(board);
-    printBoard(r_board, BOARD_HEIGHT, BOARD_WIDTH);
     Bitboards bbs = getBitboards(r_board);
     Fields fields = getFields(bbs);
-    for (Field field : fields) {
-        for (Bitboard b : field) {
-            printBitboard(b, BOARD_HEIGHT, BOARD_WIDTH);
-        }
-    }
+
+    printBoard(board, BOARD_WIDTH, BOARD_HEIGHT);
+    printBoard(r_board, BOARD_HEIGHT, BOARD_WIDTH);
+
+    int shape = 1;
+    Bitboard field = fields[shape][0];
+    explore(bbs, field, shape);
+
+    // for (SameShapeFields same_shape_field : fields) {
+    //     for (Bitboard b : same_shape_field) {
+    //         printBitboard(b, BOARD_HEIGHT, BOARD_WIDTH);
+    //     }
+    // }
+
     return 0;
 }
