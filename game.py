@@ -87,8 +87,8 @@ def solved(board_state):
 pygame.display.set_caption("Former")
 seed(2)
 
-BOARD_WIDTH = 9
-BOARD_HEIGHT = 7
+BOARD_WIDTH = 3
+BOARD_HEIGHT = 3
 TILE_SIZE = 64
 TILE_PADDING = 2
 LEFT_MASK = [BOARD_WIDTH * i for i in range(BOARD_HEIGHT)]
