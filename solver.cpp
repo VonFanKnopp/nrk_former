@@ -19,6 +19,20 @@ using Bitboards = std::array<Bitboard, NUM_SHAPES>;
 using SameShapeFields = std::vector<Bitboard>;
 using Fields = std::array<SameShapeFields, NUM_SHAPES>;
 
+constexpr std::array<Bitboard, BOARD_SIZE> getColMasks(const int width, const int height) {
+    std::array <Bitboard, BOARD_SIZE> masks{};
+    int index = 0;
+    for (int row = 0; row < height; row++) {
+        Bitboard mask = ((1ULL << width) - 1) << width * row;
+        for (int start = 0; start < width; start++) {
+            masks[index] = mask;
+            mask &= ~(1ULL << (row * width + start));
+            index++;
+        }
+    }
+    return masks;
+}
+
 constexpr Bitboard getTopMask(const int width, const int height) {
     Bitboard mask = 0;
     for (int i = 0; i < width; i++) {
@@ -35,9 +49,10 @@ constexpr Bitboard getBottomMask(const int width, const int height) {
     return mask;
 }
 
+//useful bit masks
+constexpr std::array<Bitboard, BOARD_SIZE> colMasks = getColMasks(BOARD_HEIGHT, BOARD_WIDTH);
 constexpr Bitboard topMask = getTopMask(BOARD_WIDTH, BOARD_HEIGHT);
 constexpr Bitboard bottomMask = getBottomMask(BOARD_WIDTH, BOARD_HEIGHT);
-
 
 std::vector<int> parseBoardString(std::string boardString) {
     std::vector<int> board = std::vector<int>();
@@ -50,17 +65,6 @@ std::vector<int> parseBoardString(std::string boardString) {
         }
     }
     return board;
-}
-
-void printBoard(std::vector<int> board, const int width, const int height) {
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            int index = y * width + x;
-            std::cout << board[index] << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
 }
 
 std::vector<int> rotateBoard(std::vector<int> board) {
@@ -81,6 +85,17 @@ Bitboards getBitboards(const std::vector<int> &rotatedBoard) {
         bbs[shape - 1] |= 1ULL << i;
     }
     return bbs;
+}
+
+void printBoard(std::vector<int> board, const int width, const int height) {
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = y * width + x;
+            std::cout << board[index] << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\n";
 }
 
 void printBitboard(const Bitboard b, const int width, const int height) {
@@ -106,17 +121,24 @@ void printBoardFromBitboards(const Bitboards &bbs, const int width, const int he
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int i = y * width + x;
+            bool found = false;
             for (int shape = 0; shape < NUM_SHAPES; shape++) {
                 if ((bbs[shape] >> i) & 1 == 1) {
                     std::cout << shape + 1 << " ";
+                    found = true;
+                    break;
                 }
             }
+            if (!found) {
+                std::cout << "0" << " ";
+            }
+
         }
         std::cout << "\n";
     }
 }
 
-Fields getFields(Bitboards bbs) {
+Fields getFields(const Bitboards &bbs) {
 
     Fields fields{};
 
@@ -147,31 +169,59 @@ Fields getFields(Bitboards bbs) {
     return fields;
 }
 
-Fields explore(Bitboards bbs, Bitboard field, int shape) {
+Bitboards reconstructFallingCol(Bitboards &bbs, Bitboard fullBb, Bitboard colMask) {
+    Bitboards newCols{};
+    int offset = 0;
+    while (colMask) {
+        Bitboard first = colMask & -colMask;
+        colMask &= ~first;
+
+        if (first & fullBb == 0) { continue; }
+
+        for (int i = 0; i < NUM_SHAPES; i++) {
+            if (bbs[i] & first) {
+                newCols[i] |= 1ULL << (offset);
+                offset++;
+            }
+        }
+    }
+
+    return newCols;
+}
+
+void explore(Bitboards &bbs, Bitboard field, int shape) {
+    //Clears the entire affected column and reconstructs it
     bbs[shape] &= ~field;
-
     Bitboard fullBitboard = bbs[0] | bbs[1] | bbs[2] | bbs[3];
-    std::vector<std::pair<int, int>> cols; // The lowest point in each coumn
 
-    // Find all affected cols
+
+
     while (field) {
         Bitboard first = field & -field;
         field &= ~first;
+
         int index = std::log2(first);
-        int col = index / BOARD_HEIGHT;
-        int row = index % BOARD_HEIGHT;
-        // Clear the rest of the column so it does not need to be searched 
-        Bitboard mask = (1 << BOARD_HEIGHT) - 1 << col * BOARD_WIDTH;
-        field &= ~mask;
-        cols.push_back(std::pair<int, int>(col, row));
+        Bitboard colMask = colMasks[index];
+
+        Bitboards newCols = reconstructFallingCol(bbs, fullBitboard, colMask);
+        for (int i = 0; i < NUM_SHAPES; i++) {
+            Bitboard newCol = newCols[i] << index;
+            if (newCol == 0) { continue; }
+            bbs[i] &= ~colMask;
+            bbs[i] |= newCol;
+        }
+        field &= ~colMask;
     }
-
-
-    printBitboard(fullBitboard, BOARD_HEIGHT, BOARD_WIDTH);
 }
 
 int main() {
+    // 7x9
+    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3 3 3 4 2 4 4 2 4 3 4 3 4 4 3 4 4 2 3 2 3 4 3 3 4 3 2 4]");
+    // 4x4
+    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1]");
+    // 3x3
     const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1]");
+
     std::vector<int> board = parseBoardString(boardString);
     std::vector<int> r_board = rotateBoard(board);
     Bitboards bbs = getBitboards(r_board);
@@ -180,15 +230,11 @@ int main() {
     printBoard(board, BOARD_WIDTH, BOARD_HEIGHT);
     printBoard(r_board, BOARD_HEIGHT, BOARD_WIDTH);
 
-    int shape = 1;
+    int shape = 2;
     Bitboard field = fields[shape][0];
     explore(bbs, field, shape);
 
-    // for (SameShapeFields same_shape_field : fields) {
-    //     for (Bitboard b : same_shape_field) {
-    //         printBitboard(b, BOARD_HEIGHT, BOARD_WIDTH);
-    //     }
-    // }
+    printBoardFromBitboards(bbs, BOARD_HEIGHT, BOARD_WIDTH);
 
     return 0;
 }
