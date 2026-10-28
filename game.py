@@ -1,4 +1,5 @@
 import sys
+import time
 from random import randint, seed
 
 import numpy as np
@@ -83,22 +84,42 @@ def solved(board_state):
     return True
 
 
-# pygame.init()
+class MoveHelper:
+    def __init__(self, moves, click_delay_ms=250):
+        self.moves: list = moves
+        self.delay = click_delay_ms / 1000
+
+        self.time_since_last_move = time.time()
+
+    def do_move(self, board):
+        if time.time() - self.time_since_last_move >= self.delay:
+            self.time_since_last_move = time.time()
+
+            x, y = self.moves.pop(0)
+            index = y * BOARD_WIDTH + x
+            field = get_field(board, index)
+            if field.size > 0:
+                fall(board, field)
+
+
+pygame.init()
 pygame.display.set_caption("Former")
 seed(2)
 
-BOARD_WIDTH = 3
-BOARD_HEIGHT = 3
+BOARD_WIDTH = 6
+BOARD_HEIGHT = 6
 TILE_SIZE = 64
 TILE_PADDING = 2
 LEFT_MASK = [BOARD_WIDTH * i for i in range(BOARD_HEIGHT)]
 RIGHT_MASK = [BOARD_WIDTH * i + BOARD_WIDTH - 1 for i in range(BOARD_HEIGHT)]
 
 color_map = {1: (93, 196, 121), 2: (53, 177, 231), 3: (255, 156, 84), 4: (249, 88, 171)}
+
 win_size = glm.vec2(BOARD_WIDTH, BOARD_HEIGHT) * TILE_SIZE + glm.vec2(BOARD_WIDTH + 1, BOARD_HEIGHT + 1) * TILE_PADDING
 win = pygame.display.set_mode(win_size)
 
 board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
+mover = MoveHelper([(0, 3), (3, 3), (0, 2), (2, 4), (0, 4), (0, 4)], 500)
 print(board)
 while True:
     for event in pygame.event.get():
@@ -112,12 +133,15 @@ while True:
             relative_mouse.x = glm.clamp(relative_mouse.x, 0, BOARD_WIDTH - 1)
             relative_mouse.y = glm.clamp(relative_mouse.y, 0, BOARD_HEIGHT - 1)
             index = int(relative_mouse.x + relative_mouse.y * BOARD_WIDTH)
-
             field = get_field(board, index)
             if field.size > 0:
                 fall(board, field)
             if solved(board):
-                board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
+                pass
+                # board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
+    # if mover.moves:
+    #     mover.do_move(board)
+
     win.fill((0, 0, 0))
     draw_board(win, board)
     pygame.display.update()
