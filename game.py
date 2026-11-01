@@ -106,8 +106,8 @@ pygame.init()
 pygame.display.set_caption("Former")
 seed(2)
 
-BOARD_WIDTH = 6
-BOARD_HEIGHT = 6
+BOARD_WIDTH = 7
+BOARD_HEIGHT = 9
 TILE_SIZE = 64
 TILE_PADDING = 2
 LEFT_MASK = [BOARD_WIDTH * i for i in range(BOARD_HEIGHT)]
@@ -119,7 +119,9 @@ win_size = glm.vec2(BOARD_WIDTH, BOARD_HEIGHT) * TILE_SIZE + glm.vec2(BOARD_WIDT
 win = pygame.display.set_mode(win_size)
 
 board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
-mover = MoveHelper([(0, 3), (3, 3), (0, 2), (2, 4), (0, 4), (0, 4)], 500)
+mover = MoveHelper(
+    [(0, 0), (1, 4), (0, 6), (3, 7), (0, 7), (0, 8), (5, 6), (6, 7), (0, 8), (4, 8), (6, 8), (0, 8)], 500
+)
 print(board)
 while True:
     for event in pygame.event.get():
@@ -139,8 +141,8 @@ while True:
             if solved(board):
                 pass
                 # board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
-    # if mover.moves:
-    #     mover.do_move(board)
+    if mover.moves:
+        mover.do_move(board)
 
     win.fill((0, 0, 0))
     draw_board(win, board)

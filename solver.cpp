@@ -14,8 +14,8 @@
 #include <queue>
 #include <optional>
 
-constexpr int BOARD_WIDTH = 6;
-constexpr int BOARD_HEIGHT = 6;
+constexpr int BOARD_WIDTH = 7;
+constexpr int BOARD_HEIGHT = 9;
 constexpr int BOARD_SIZE = BOARD_WIDTH * BOARD_HEIGHT;
 constexpr int NUM_SHAPES = 4;
 
@@ -263,6 +263,28 @@ std::vector<SameShapeFields> getConnectableFields(const Fields& fields) {
     return connectableFields;
 }
 
+
+int getNumConnecableFields(const Bitboards& boardState) {
+    int count = 0;
+
+    for (int shape = 0; shape < NUM_SHAPES; shape++) {
+        Bitboard boardOneColor = boardState[shape];
+        Bitboard window = colMasks[0];
+        bool found = false;
+
+        for (Bitboard x = 0; x < BOARD_WIDTH; x++) {
+            window <<= x * BOARD_HEIGHT;
+            if (boardOneColor & window && !found) {
+                count += 1;
+                found = true;
+            }
+            else if (!(boardOneColor & window)) {
+                found = false;
+            }
+        }
+    }
+    return count;
+}
 Bitboards reconstructFallingCol(Bitboards& bbs, Bitboard fullBb, Bitboard colMask) {
     Bitboards newCols{};
     int offset = 0;
@@ -349,7 +371,7 @@ struct PQHeuristic {
             return 0.0f;
         }
         int empty = BOARD_SIZE - std::popcount(node.remaining);
-        float heuristic = static_cast<float>(empty) / node.depth;
+        float heuristic = static_cast<float>(empty) - 4 * node.depth;
         return heuristic;
     }
 };
@@ -359,9 +381,7 @@ int getMaxSearchDepth(std::vector<SearchNode> nextBatch) {
 
     for (const SearchNode& node : nextBatch) {
         Fields fields = getFields(node.boardState);
-        std::vector<SameShapeFields> connectableFields = getConnectableFields(fields);
-
-        maxConnectableFields = std::max(maxConnectableFields, static_cast<int>(connectableFields.size()));
+        maxConnectableFields = std::max(maxConnectableFields, getNumConnecableFields(node.boardState));
     }
     return maxConnectableFields;
 }
@@ -394,6 +414,16 @@ std::vector<std::pair<int, int>> convertToNormalCoords(const std::vector<int>& p
     }
     return normalCoords;
 }
+
+void printSolution(const SearchNode& solutionNode, const std::vector<MoveNode> moveTree) {
+    std::vector<int> path = reconstructSolutionPath(moveTree, solutionNode);
+    std::vector<std::pair<int, int>> pathNormalCoords = convertToNormalCoords(path);
+    for (std::pair<int, int> move : pathNormalCoords) {
+        std::cout << "(" << move.first << ", " << move.second << "), ";
+    }
+    std::cout << "\n";
+}
+
 void solve(const std::string& boardString) {
     std::vector<int> board = parseBoardString(boardString);
     std::vector<int> r_board = rotateBoard(board);
@@ -416,23 +446,20 @@ void solve(const std::string& boardString) {
     pq.push(startSearchNode);
     moveTree.push_back(startMoveNode);
 
-    /*
-    Siden man aldri vil finne en løsning på mindre enn |connecable fields| trekk, kan man generere alle brett inntill det.
-    Derfor søke til dypde |connectable fields| før det er poeng i å sjekke noe som helst, hvis ingen løsning er funnet,
-    gjenta prosessen på alle nodes som er igjen.
-    */
 
-    std::vector<SearchNode> nextBatch;
-    int maxSearchDepth = getConnectableFields(getFields(startSearchNode.boardState)).size();
-
+    int maxSearchDepth = 1000;
 
     while (!solution) {
-        if (pq.size() == 0 && nextBatch.size() == 0) { break; }
+        if (pq.size() == 0) { break; }
 
         while (pq.size() > 0) {
             SearchNode currNode = pq.top();
             pq.pop();
             MoveNode currMoveNode = moveTree[currNode.moveTreeIndex];
+            if (currNode.depth + getNumConnecableFields(currNode.boardState) >= maxSearchDepth) {
+                continue;
+            }
+
             while (currNode.remaining) {
                 Bitboards boardState = currNode.boardState;
 
@@ -451,9 +478,6 @@ void solve(const std::string& boardString) {
                     continue;
                 }
                 visited[key] = newDepth;
-                // printBitboard(currNode.remaining, BOARD_HEIGHT, BOARD_WIDTH);
-                // printBitboard(field, BOARD_HEIGHT, BOARD_WIDTH);
-                // std::cout << firstCellIndex << " \n";
 
                 MoveNode newMoveNode = MoveNode{
                     currNode.moveTreeIndex,
@@ -468,53 +492,50 @@ void solve(const std::string& boardString) {
                     currNode.depth + 1
                 };
 
-                if (isSolved(newNode.remaining) && newNode.depth <= maxSearchDepth) {
-                    solution = newNode;
+                if (isSolved(newNode.remaining) && newNode.depth < maxSearchDepth) {
                     maxSearchDepth = currNode.depth + 1;
                     moveTreeSolutionIndex = moveTree.size() - 1;
-                    break;
+                    std::cout << "New soulution found! \n";
+                    std::cout << "Max depth: " << maxSearchDepth << "\n";
+                    solution = newNode;
+                    printSolution(solution.value(), moveTree);
+                    continue;
                 }
 
-                if (newNode.depth == maxSearchDepth) {
-                    // std::cout << "pushed to batch" << "\n";
-                    nextBatch.push_back(newNode);
-                }
-                else {
-                    // std::cout << "pushed to pq" << "\n";
-                    pq.push(newNode);
-                }
+                pq.push(newNode);
             }
         }
-        maxSearchDepth += getMaxSearchDepth(nextBatch);
-        std::cout << "Search Depth increased " << maxSearchDepth << "\n";
         std::cout << moveTree.size() << "\n";
-        for (SearchNode node : nextBatch) {
-            pq.push(node);
-        }
-        nextBatch.clear();
     }
     SearchNode s = solution.value();
-    std::vector<int> path = reconstructSolutionPath(moveTree, s);
-    std::vector<std::pair<int, int>> pathNormalCoords = convertToNormalCoords(path);
-
-    for (int move : path) {
-        std::cout << move << "\n";
-    }
-    for (std::pair<int, int> move : pathNormalCoords) {
-        std::cout << "(" << move.first << ", " << move.second << "), ";
-    }
+    printSolution(s, moveTree);
     std::cout << s.depth << "\n";
-    std::cout << moveTree.size();
+    std::cout << moveTree.size() << "\n";
+    std::cout << visited.size();
+
 }
 
 int main() {
-    // 7x9
-    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3 3 3 4 2 4 4 2 4 3 4 3 4 4 3 4 4 2 3 2 3 4 3 3 4 3 2 4]");
-    // 4x4
-    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1]");
-    const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3]");
     // 3x3
     // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1]");
+    // 4x4
+    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1]");
+    // 5x5
+    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3]");
+    // 6x6
+    // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3]");
+    // 7x9
+    const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3 3 3 4 2 4 4 2 4 3 4 3 4 4 3 4 4 2 3 2 3 4 3 3 4 3 2 4]");
+
+
+    // std::vector<int> board = parseBoardString(boardString);
+    // std::vector<int> r_board = rotateBoard(board);
+    // Bitboards bbs = getBitboards(r_board);
+    // Fields fields = getFields(bbs);
+    // std::vector<SameShapeFields> connectable = getConnectableFields(fields);
+    // std::cout << connectable.size() << "\n";
+    // std::cout << getNumConnecableFields(bbs) << "\n";
+
     solve(boardString);
     return 0;
 }
