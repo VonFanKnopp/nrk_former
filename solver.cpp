@@ -88,6 +88,9 @@ Bitboards getBitboards(const std::vector<int>& rotatedBoard) {
     Bitboards bbs{};
     for (int i = 0; i < BOARD_SIZE; i++) {
         int shape = rotatedBoard[i];
+        if (shape == 0) {
+            continue;
+        }
         bbs[shape - 1] |= 1ULL << i;
     }
     return bbs;
@@ -269,22 +272,19 @@ int getNumConnecableFields(const Bitboards& boardState) {
 
     for (int shape = 0; shape < NUM_SHAPES; shape++) {
         Bitboard boardOneColor = boardState[shape];
-        Bitboard window = colMasks[0];
         bool found = false;
 
-        for (Bitboard x = 0; x < BOARD_WIDTH; x++) {
-            window <<= x * BOARD_HEIGHT;
-            if (boardOneColor & window && !found) {
-                count += 1;
-                found = true;
+        for (int x = 0; x < BOARD_WIDTH; x++) {
+            bool occupied = boardOneColor & colMasks[x * BOARD_HEIGHT];
+            if (occupied && !found) {
+                count++;
             }
-            else if (!(boardOneColor & window)) {
-                found = false;
-            }
+            found = occupied;
         }
     }
     return count;
 }
+
 Bitboards reconstructFallingCol(Bitboards& bbs, Bitboard fullBb, Bitboard colMask) {
     Bitboards newCols{};
     int offset = 0;
@@ -446,7 +446,6 @@ void solve(const std::string& boardString) {
     pq.push(startSearchNode);
     moveTree.push_back(startMoveNode);
 
-
     int maxSearchDepth = 1000;
 
     while (!solution) {
@@ -456,6 +455,8 @@ void solve(const std::string& boardString) {
             SearchNode currNode = pq.top();
             pq.pop();
             MoveNode currMoveNode = moveTree[currNode.moveTreeIndex];
+            Fields fields = getFields(currNode.boardState);
+
             if (currNode.depth + getNumConnecableFields(currNode.boardState) >= maxSearchDepth) {
                 continue;
             }
@@ -526,16 +527,17 @@ int main() {
     // const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3]");
     // 7x9
     const std::string boardString = std::string("[1 1 1 3 2 3 3 2 1 2 4 4 3 4 3 1 1 3 4 3 4 4 2 2 2 2 1 2 3 2 2 3 2 4 4 3 3 3 4 2 4 4 2 4 3 4 3 4 4 3 4 4 2 3 2 3 4 3 3 4 3 2 4]");
+    solve(boardString);
 
 
     // std::vector<int> board = parseBoardString(boardString);
-    // std::vector<int> r_board = rotateBoard(board);
-    // Bitboards bbs = getBitboards(r_board);
+
+    // Bitboards bbs = getBitboards(board);
     // Fields fields = getFields(bbs);
+    // // printBitboards(bbs, BOARD_HEIGHT, BOARD_WIDTH);
     // std::vector<SameShapeFields> connectable = getConnectableFields(fields);
     // std::cout << connectable.size() << "\n";
     // std::cout << getNumConnecableFields(bbs) << "\n";
 
-    solve(boardString);
     return 0;
 }

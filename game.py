@@ -140,7 +140,7 @@ while True:
                 fall(board, field)
             if solved(board):
                 pass
-                # board = init_board(BOARD_WIDTH, BOARD_HEIGHT)
+
     if mover.moves:
         mover.do_move(board)
 
