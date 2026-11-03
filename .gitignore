@@ -1,4 +1,3 @@
 test.py
 test.cpp
 *.exe
-git rm -r --cached .
